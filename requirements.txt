@@ -1,0 +1,8 @@
+streamlit
+snowflake-snowpark-python
+pandas
+plotly
+duckdb
+pytest
+snowflake-cli-labs
+numpy
