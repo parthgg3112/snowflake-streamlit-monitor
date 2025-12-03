@@ -29,7 +29,7 @@ jobs:
         run: |
           snow connection add --connection prod \
             --account "${{ secrets.SNOWFLAKE_ACCOUNT }}" \
-            --user "${{ secrets.SNOWFLAKE_USER }}" \
+            --username "${{ secrets.SNOWFLAKE_USER }}" \
             --password "$SNOW_PASSWORD" \
             --role ACCOUNTADMIN \
             --warehouse DASHBOARD_WH
