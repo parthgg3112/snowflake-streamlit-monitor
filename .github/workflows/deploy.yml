@@ -21,7 +21,7 @@ jobs:
         run: pip install pytest pandas duckdb snowflake-snowpark-python snowflake-cli-labs
 
       - name: Run Tests
-        run: pytest tests/test_services.py
+        run: python -m pytest tests/test_services.py
 
       - name: Deploy to Snowflake
         env:
