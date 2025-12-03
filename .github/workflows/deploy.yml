@@ -23,15 +23,18 @@ jobs:
       - name: Run Tests
         run: python -m pytest tests/test_services.py
 
-      - name: Deploy to Snowflake
-        env:
-          SNOW_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      # REPLACED STEP: Create the config file manually (Bypasses CLI errors)
+      - name: Create Snowflake Config
         run: |
-          snow connection add --connection prod \
-            --account "${{ secrets.SNOWFLAKE_ACCOUNT }}" \
-            --username "${{ secrets.SNOWFLAKE_USER }}" \
-            --password "$SNOW_PASSWORD" \
-            --role ACCOUNTADMIN \
-            --warehouse DASHBOARD_WH
-          
-          snow streamlit deploy --replace --connection prod
+          mkdir -p ~/.snowflake
+          echo "[connections.prod]" > ~/.snowflake/config.toml
+          echo "account = \"${{ secrets.SNOWFLAKE_ACCOUNT }}\"" >> ~/.snowflake/config.toml
+          echo "user = \"${{ secrets.SNOWFLAKE_USER }}\"" >> ~/.snowflake/config.toml
+          echo "password = \"${{ secrets.SNOWFLAKE_PASSWORD }}\"" >> ~/.snowflake/config.toml
+          echo "role = \"ACCOUNTADMIN\"" >> ~/.snowflake/config.toml
+          echo "warehouse = \"DASHBOARD_WH\"" >> ~/.snowflake/config.toml
+          echo "database = \"DASHBOARD_DB\"" >> ~/.snowflake/config.toml
+          echo "schema = \"APP_SCHEMA\"" >> ~/.snowflake/config.toml
+
+      - name: Deploy to Snowflake
+        run: snow streamlit deploy --replace --connection prod
