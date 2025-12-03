@@ -37,4 +37,4 @@ jobs:
           echo "schema = \"APP_SCHEMA\"" >> ~/.snowflake/config.toml
 
       - name: Deploy to Snowflake
-        run: snow streamlit deploy --connection prod
+        run: snow --connection prod streamlit deploy
