@@ -23,11 +23,11 @@ jobs:
       - name: Run Tests
         run: python -m pytest tests/test_services.py
 
-      # REPLACED STEP: Create the config file manually (Bypasses CLI errors)
+      # 1. Manually create the config file (Naming the connection "default")
       - name: Create Snowflake Config
         run: |
           mkdir -p ~/.snowflake
-          echo "[connections.prod]" > ~/.snowflake/config.toml
+          echo "[connections.default]" > ~/.snowflake/config.toml
           echo "account = \"${{ secrets.SNOWFLAKE_ACCOUNT }}\"" >> ~/.snowflake/config.toml
           echo "user = \"${{ secrets.SNOWFLAKE_USER }}\"" >> ~/.snowflake/config.toml
           echo "password = \"${{ secrets.SNOWFLAKE_PASSWORD }}\"" >> ~/.snowflake/config.toml
@@ -36,5 +36,6 @@ jobs:
           echo "database = \"DASHBOARD_DB\"" >> ~/.snowflake/config.toml
           echo "schema = \"APP_SCHEMA\"" >> ~/.snowflake/config.toml
 
+      # 2. Deploy (No flags needed because we set it as "default" above!)
       - name: Deploy to Snowflake
-        run: snow --connection prod streamlit deploy
+        run: snow streamlit deploy
