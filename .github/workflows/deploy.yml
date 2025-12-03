@@ -38,4 +38,4 @@ jobs:
 
       # 2. Deploy (No flags needed because we set it as "default" above!)
       - name: Deploy to Snowflake
-        run: snow streamlit deploy
+        run: snow streamlit deploy Production_Monitoring_App
