@@ -1,0 +1,9 @@
+definition_version: 1
+streamlit:
+  name: "Production_Monitoring_App"
+  stage: "DASHBOARD_DB.APP_SCHEMA.STREAMLIT_STAGE"
+  query_warehouse: "DASHBOARD_WH"
+  main_file: "Home.py"
+  artifacts:
+    - src/
+    - environment.yml

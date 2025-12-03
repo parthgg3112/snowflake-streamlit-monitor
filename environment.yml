@@ -1,0 +1,13 @@
+name : production_app_dashboard
+channels:
+  - snowflake
+depenencies:
+  - python=3.10
+  - streamlit
+  - pandas
+  - plotly
+  - duckdb
+  - pytest
+  - snowflake-cli-labs
+  - numpy
+  - snowflake

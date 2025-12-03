@@ -6,3 +6,4 @@ duckdb
 pytest
 snowflake-cli-labs
 numpy
+snowflake

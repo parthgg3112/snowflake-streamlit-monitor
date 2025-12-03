@@ -1,0 +1,37 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.8'
+
+      - name: Install Tools
+        run: pip install pytest pandas duckdb snowflake-snowpark-python snowflake-cli-labs
+
+      - name: Run Tests
+        run: pytest tests/test_services.py
+
+      - name: Deploy to Snowflake
+        env:
+          SNOW_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+        run: |
+          snow connection add --connection-name prod \
+            --account "${{ secrets.SNOWFLAKE_ACCOUNT }}" \
+            --user "${{ secrets.SNOWFLAKE_USER }}" \
+            --password "$SNOW_PASSWORD" \
+            --role ACCOUNTADMIN \
+            --warehouse DASHBOARD_WH
+          
+          snow streamlit deploy --replace --connection prod
