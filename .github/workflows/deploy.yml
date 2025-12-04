@@ -24,6 +24,7 @@ jobs:
         run: python -m pytest tests/test_services.py
 
       # 1. Manually create the config file (Naming the connection "default")
+      # 1. Create Config (Same as before - keep this!)
       - name: Create Snowflake Config
         run: |
           mkdir -p ~/.snowflake
@@ -36,6 +37,11 @@ jobs:
           echo "database = \"DASHBOARD_DB\"" >> ~/.snowflake/config.toml
           echo "schema = \"APP_SCHEMA\"" >> ~/.snowflake/config.toml
 
-
+      # 2. THE FIX: Delete the old app first (SQL), then Deploy new one
       - name: Deploy to Snowflake
-        run: snow streamlit deploy Production_Monitor_App
+        run: |
+          # Step A: Destroy the existing app (This prevents the "Already Exists" error)
+          snow sql -q "DROP STREAMLIT IF EXISTS DASHBOARD_DB.APP_SCHEMA.Production_Monitor_App"
+          
+          # Step B: Deploy fresh (No --replace flag needed anymore!)
+          snow streamlit deploy Production_Monitor_App
