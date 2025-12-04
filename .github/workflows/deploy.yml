@@ -37,7 +37,7 @@ jobs:
           SNOWFLAKE_CONNECTIONS_DEFAULT_DATABASE: DASHBOARD_DB
           SNOWFLAKE_CONNECTIONS_DEFAULT_SCHEMA: APP_SCHEMA
         run: |
-          # 1. Drop old app
+          # 1. Drop old app (using connection 'default', which we defined in env vars above)
           snow sql --connection default -q "DROP STREAMLIT IF EXISTS Production_Monitor_App"
           
           # 2. Deploy new app
