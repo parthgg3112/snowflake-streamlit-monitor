@@ -8,6 +8,11 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
+    # Define environment variables globally for all steps
+    env:
+      SNOWFLAKE_CONFIG_FILE: ./config.toml  # Force tool to read config from current folder
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -20,25 +25,54 @@ jobs:
       - name: Install Tools
         run: pip install streamlit snowflake-snowpark-python pandas plotly snowflake-cli-labs
 
-      - name: Debug Secrets (Check if they exist)
+      # 🔍 DIAGNOSTIC STEP: Check if secrets actually exist
+      - name: Verify Secrets
         run: |
-          if [ -z "${{ secrets.SNOWFLAKE_ACCOUNT }}" ]; then echo "❌ Error: SNOWFLAKE_ACCOUNT secret is missing!"; else echo "✅ SNOWFLAKE_ACCOUNT found."; fi
-          if [ -z "${{ secrets.SNOWFLAKE_USER }}" ]; then echo "❌ Error: SNOWFLAKE_USER secret is missing!"; else echo "✅ SNOWFLAKE_USER found."; fi
+          echo "Checking secrets..."
+          if [ -z "${{ secrets.SNOWFLAKE_ACCOUNT }}" ]; then
+            echo "::error::❌ CRITICAL: SNOWFLAKE_ACCOUNT secret is EMPTY. Go to GitHub Settings > Secrets."
+            exit 1
+          fi
+          if [ -z "${{ secrets.SNOWFLAKE_USER }}" ]; then
+            echo "::error::❌ CRITICAL: SNOWFLAKE_USER secret is EMPTY."
+            exit 1
+          fi
+          if [ -z "${{ secrets.SNOWFLAKE_PASSWORD }}" ]; then
+            echo "::error::❌ CRITICAL: SNOWFLAKE_PASSWORD secret is EMPTY."
+            exit 1
+          fi
+          echo "✅ All secrets are present!"
 
-      - name: Deploy to Snowflake
+      # 🛠️ CONFIG STEP: Create config.toml in CURRENT folder (using Python for safety)
+      - name: Create Local Config
         env:
-          # We inject credentials directly into the tool's environment
-          # The tool automatically maps these to connection "default"
-          SNOWFLAKE_CONNECTIONS_DEFAULT_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-          SNOWFLAKE_CONNECTIONS_DEFAULT_USER: ${{ secrets.SNOWFLAKE_USER }}
-          SNOWFLAKE_CONNECTIONS_DEFAULT_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-          SNOWFLAKE_CONNECTIONS_DEFAULT_ROLE: ACCOUNTADMIN
-          SNOWFLAKE_CONNECTIONS_DEFAULT_WAREHOUSE: DASHBOARD_WH
-          SNOWFLAKE_CONNECTIONS_DEFAULT_DATABASE: DASHBOARD_DB
-          SNOWFLAKE_CONNECTIONS_DEFAULT_SCHEMA: APP_SCHEMA
+          SNOW_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOW_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOW_PASS: ${{ secrets.SNOWFLAKE_PASSWORD }}
         run: |
-          # 1. Drop old app (using connection 'default', which we defined in env vars above)
-          snow sql --connection default -q "DROP STREAMLIT IF EXISTS Production_Monitor_App"
+          python -c "
+          import os
           
-          # 2. Deploy new app
-          snow streamlit deploy Production_Monitor_App --connection default --replace
+          config_content = f'''[connections.default]
+          account = \"{os.environ['SNOW_ACCOUNT']}\"
+          user = \"{os.environ['SNOW_USER']}\"
+          password = \"{os.environ['SNOW_PASS']}\"
+          role = \"ACCOUNTADMIN\"
+          warehouse = \"DASHBOARD_WH\"
+          database = \"DASHBOARD_DB\"
+          schema = \"APP_SCHEMA\"
+          '''
+          
+          with open('config.toml', 'w') as f:
+              f.write(config_content)
+          print('✅ Created config.toml in current directory')
+          "
+
+      # 🚀 DEPLOY STEP
+      - name: Deploy to Snowflake
+        run: |
+          # 1. Drop old app to prevent conflicts
+          snow sql --connection default -q "DROP STREAMLIT IF EXISTS DASHBOARD_DB.APP_SCHEMA.Production_Monitor_App"
+          
+          # 2. Deploy fresh
+          snow streamlit deploy Production_Monitor_App --connection default
