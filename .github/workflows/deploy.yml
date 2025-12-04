@@ -15,29 +15,48 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.9'
 
       - name: Install Tools
         run: pip install streamlit snowflake-snowpark-python pandas plotly snowflake-cli-labs
 
-      - name: Debug Secrets
-        run: |
-          if [ -z "${{ secrets.SNOWFLAKE_ACCOUNT }}" ]; then echo "❌ Account Secret Missing"; exit 1; fi
-          echo "✅ Secrets found."
-
-      - name: Deploy to Snowflake
-        # We define a temporary connection named 'gha' using environment variables
+      # 1. Create config.toml in the CURRENT folder (Safe Python Script)
+      - name: Create Local Config
         env:
-          SNOWFLAKE_CONNECTIONS_GHA_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-          SNOWFLAKE_CONNECTIONS_GHA_USER: ${{ secrets.SNOWFLAKE_USER }}
-          SNOWFLAKE_CONNECTIONS_GHA_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-          SNOWFLAKE_CONNECTIONS_GHA_ROLE: ACCOUNTADMIN
-          SNOWFLAKE_CONNECTIONS_GHA_WAREHOUSE: DASHBOARD_WH
-          SNOWFLAKE_CONNECTIONS_GHA_DATABASE: DASHBOARD_DB
-          SNOWFLAKE_CONNECTIONS_GHA_SCHEMA: APP_SCHEMA
+          SNOW_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOW_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOW_PASS: ${{ secrets.SNOWFLAKE_PASSWORD }}
         run: |
-          # 1. Drop old app (Using connection 'gha')
-          snow sql --connection gha -q "DROP STREAMLIT IF EXISTS Production_Monitor_App"
+          python -c "
+          import os
           
-          # 2. Deploy new app (Using connection 'gha')
-          snow streamlit deploy Production_Monitor_App --connection gha --replace
+          # We write to 'config.toml' in the current directory
+          config_content = f'''[connections.default]
+          account = \"{os.environ['SNOW_ACCOUNT']}\"
+          user = \"{os.environ['SNOW_USER']}\"
+          password = \"{os.environ['SNOW_PASS']}\"
+          role = \"ACCOUNTADMIN\"
+          warehouse = \"DASHBOARD_WH\"
+          database = \"DASHBOARD_DB\"
+          schema = \"APP_SCHEMA\"
+          '''
+          
+          with open('config.toml', 'w') as f:
+              f.write(config_content)
+          
+          print('✅ config.toml created successfully in current folder')
+          "
+
+      # 2. Deploy (Pointing explicitly to the file)
+      - name: Deploy to Snowflake
+        run: |
+          # TELL THE TOOL EXACTLY WHERE THE FILE IS
+          export SNOWFLAKE_CONFIG_FILE=$(pwd)/config.toml
+          
+          echo "Using config file at: $SNOWFLAKE_CONFIG_FILE"
+          
+          # 1. Drop old app
+          snow sql --connection default -q "DROP STREAMLIT IF EXISTS Production_Monitor_App"
+          
+          # 2. Deploy fresh
+          snow streamlit deploy Production_Monitor_App --connection default --replace
