@@ -12,54 +12,33 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 1. Force Python 3.9 (The "Safe Harbor" for Snowflake)
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      # 2. Install Dependencies
       - name: Install Tools
         run: pip install streamlit snowflake-snowpark-python pandas plotly snowflake-cli-labs
 
-      # 3. Create Config using PYTHON (Not Bash) to prevent corruption
-      - name: Create Snowflake Config
-        env:
-          SNOW_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-          SNOW_USER: ${{ secrets.SNOWFLAKE_USER }}
-          SNOW_PASS: ${{ secrets.SNOWFLAKE_PASSWORD }}
+      - name: Debug Secrets (Check if they exist)
         run: |
-          python -c "
-          import os
-          from pathlib import Path
-          
-          # Create the folder safely
-          config_dir = Path.home() / '.snowflake'
-          config_dir.mkdir(parents=True, exist_ok=True)
-          
-          # Write the content cleanly
-          config_content = f'''[connections.default]
-          account = \"{os.environ['SNOW_ACCOUNT']}\"
-          user = \"{os.environ['SNOW_USER']}\"
-          password = \"{os.environ['SNOW_PASS']}\"
-          role = \"ACCOUNTADMIN\"
-          warehouse = \"DASHBOARD_WH\"
-          database = \"DASHBOARD_DB\"
-          schema = \"APP_SCHEMA\"
-          '''
-          
-          # Save file
-          with open(config_dir / 'config.toml', 'w') as f:
-              f.write(config_content)
-          
-          print('✅ Config file created successfully at', config_dir / 'config.toml')
-          "
+          if [ -z "${{ secrets.SNOWFLAKE_ACCOUNT }}" ]; then echo "❌ Error: SNOWFLAKE_ACCOUNT secret is missing!"; else echo "✅ SNOWFLAKE_ACCOUNT found."; fi
+          if [ -z "${{ secrets.SNOWFLAKE_USER }}" ]; then echo "❌ Error: SNOWFLAKE_USER secret is missing!"; else echo "✅ SNOWFLAKE_USER found."; fi
 
-      # 4. Deploy (Using the default connection we just made)
       - name: Deploy to Snowflake
+        env:
+          # We inject credentials directly into the tool's environment
+          # The tool automatically maps these to connection "default"
+          SNOWFLAKE_CONNECTIONS_DEFAULT_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_CONNECTIONS_DEFAULT_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_CONNECTIONS_DEFAULT_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_CONNECTIONS_DEFAULT_ROLE: ACCOUNTADMIN
+          SNOWFLAKE_CONNECTIONS_DEFAULT_WAREHOUSE: DASHBOARD_WH
+          SNOWFLAKE_CONNECTIONS_DEFAULT_DATABASE: DASHBOARD_DB
+          SNOWFLAKE_CONNECTIONS_DEFAULT_SCHEMA: APP_SCHEMA
         run: |
-          # A. Clean up old app to prevent conflicts
-          snow sql --connection default -q "DROP STREAMLIT IF EXISTS DASHBOARD_DB.APP_SCHEMA.Production_Monitor_App"
+          # 1. Drop old app
+          snow sql --connection default -q "DROP STREAMLIT IF EXISTS Production_Monitor_App"
           
-          # B. Deploy fresh
-          snow streamlit deploy Production_Monitor_App --connection default
+          # 2. Deploy new app
+          snow streamlit deploy Production_Monitor_App --connection default --replace
