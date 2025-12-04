@@ -17,11 +17,10 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 1. INSTALL STABLE VERSION (Crucial Fix)
       - name: Install Tools
+        # Using specific version for stability
         run: pip install streamlit snowflake-snowpark-python pandas plotly snowflake-cli-labs==2.2.0
 
-      # 2. Create Config in Default Home Location
       - name: Create Global Config
         env:
           SNOW_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
@@ -32,11 +31,9 @@ jobs:
           import os
           from pathlib import Path
           
-          # Create ~/.snowflake directory
           config_dir = Path.home() / '.snowflake'
           config_dir.mkdir(parents=True, exist_ok=True)
           
-          # Content for Version 2.2.0
           config_content = f'''[connections.default]
           account = \"{os.environ['SNOW_ACCOUNT']}\"
           user = \"{os.environ['SNOW_USER']}\"
@@ -47,18 +44,21 @@ jobs:
           schema = \"APP_SCHEMA\"
           '''
           
-          # Write file
-          with open(config_dir / 'config.toml', 'w') as f:
+          config_file = config_dir / 'config.toml'
+          with open(config_file, 'w') as f:
               f.write(config_content)
               
-          print('✅ Config created at:', config_dir / 'config.toml')
+          print('✅ Config created')
           "
 
-      # 3. Deploy
+      # --- THE FIX IS HERE ---
+      - name: Fix Permissions
+        run: chmod 0600 ~/.snowflake/config.toml
+
       - name: Deploy to Snowflake
         run: |
-          # Drop old app to clear state
+          # Drop old app
           snow sql -c default -q "DROP STREAMLIT IF EXISTS Production_Monitor_App"
           
-          # Deploy fresh (using -c default explicitly)
+          # Deploy fresh
           snow streamlit deploy Production_Monitor_App -c default --replace
