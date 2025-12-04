@@ -22,32 +22,22 @@ jobs:
 
       - name: Debug Secrets
         run: |
-          if [ -z "${{ secrets.SNOWFLAKE_ACCOUNT }}" ]; then echo "❌ Account Missing"; exit 1; fi
-          if [ -z "${{ secrets.SNOWFLAKE_USER }}" ]; then echo "❌ User Missing"; exit 1; fi
+          if [ -z "${{ secrets.SNOWFLAKE_ACCOUNT }}" ]; then echo "❌ Account Secret Missing"; exit 1; fi
           echo "✅ Secrets found."
 
       - name: Deploy to Snowflake
-        # We pass the secrets directly into the command flags.
-        # This bypasses all configuration file lookups.
+        # We define a temporary connection named 'gha' using environment variables
+        env:
+          SNOWFLAKE_CONNECTIONS_GHA_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOWFLAKE_CONNECTIONS_GHA_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOWFLAKE_CONNECTIONS_GHA_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          SNOWFLAKE_CONNECTIONS_GHA_ROLE: ACCOUNTADMIN
+          SNOWFLAKE_CONNECTIONS_GHA_WAREHOUSE: DASHBOARD_WH
+          SNOWFLAKE_CONNECTIONS_GHA_DATABASE: DASHBOARD_DB
+          SNOWFLAKE_CONNECTIONS_GHA_SCHEMA: APP_SCHEMA
         run: |
-          # 1. Drop old app (Passing auth flags directly)
-          snow sql \
-            --account "${{ secrets.SNOWFLAKE_ACCOUNT }}" \
-            --user "${{ secrets.SNOWFLAKE_USER }}" \
-            --password "${{ secrets.SNOWFLAKE_PASSWORD }}" \
-            --role ACCOUNTADMIN \
-            --warehouse DASHBOARD_WH \
-            --database DASHBOARD_DB \
-            --schema APP_SCHEMA \
-            -q "DROP STREAMLIT IF EXISTS Production_Monitor_App"
+          # 1. Drop old app (Using connection 'gha')
+          snow sql --connection gha -q "DROP STREAMLIT IF EXISTS Production_Monitor_App"
           
-          # 2. Deploy new app (Passing auth flags directly)
-          snow streamlit deploy Production_Monitor_App \
-            --replace \
-            --account "${{ secrets.SNOWFLAKE_ACCOUNT }}" \
-            --user "${{ secrets.SNOWFLAKE_USER }}" \
-            --password "${{ secrets.SNOWFLAKE_PASSWORD }}" \
-            --role ACCOUNTADMIN \
-            --warehouse DASHBOARD_WH \
-            --database DASHBOARD_DB \
-            --schema APP_SCHEMA
+          # 2. Deploy new app (Using connection 'gha')
+          snow streamlit deploy Production_Monitor_App --connection gha --replace
