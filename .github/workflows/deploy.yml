@@ -36,6 +36,6 @@ jobs:
           echo "database = \"DASHBOARD_DB\"" >> ~/.snowflake/config.toml
           echo "schema = \"APP_SCHEMA\"" >> ~/.snowflake/config.toml
 
-      # 2. Deploy (No flags needed because we set it as "default" above!)
+          
       - name: Deploy to Snowflake
-        run: snow streamlit deploy Production_Monitoring_App
+        run: snow streamlit deploy Production_Monitor_App --replace
