@@ -5,18 +5,6 @@ on:
     branches:
       - main
 
-# 1. GLOBAL ENVIRONMENT VARIABLES
-# The Snowflake CLI automatically looks for variables named like this.
-# This bypasses the need for a config.toml file entirely.
-env:
-  SNOWFLAKE_CONNECTIONS_DEFAULT_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-  SNOWFLAKE_CONNECTIONS_DEFAULT_USER: ${{ secrets.SNOWFLAKE_USER }}
-  SNOWFLAKE_CONNECTIONS_DEFAULT_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
-  SNOWFLAKE_CONNECTIONS_DEFAULT_ROLE: ACCOUNTADMIN
-  SNOWFLAKE_CONNECTIONS_DEFAULT_WAREHOUSE: DASHBOARD_WH
-  SNOWFLAKE_CONNECTIONS_DEFAULT_DATABASE: DASHBOARD_DB
-  SNOWFLAKE_CONNECTIONS_DEFAULT_SCHEMA: APP_SCHEMA
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -24,8 +12,6 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Stick to 3.10 or 3.9 for stability. 
-      # 3.11 sometimes has issues with specific library versions in CI.
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -34,20 +20,34 @@ jobs:
       - name: Install Tools
         run: pip install streamlit snowflake-snowpark-python pandas plotly snowflake-cli-labs
 
-      # 2. DIAGNOSTIC: Verify Secrets exist (Does not print them, just checks)
-      - name: Check Secrets
+      - name: Debug Secrets
         run: |
-          if [ -z "$SNOWFLAKE_CONNECTIONS_DEFAULT_ACCOUNT" ]; then echo "❌ Account Secret Missing"; exit 1; fi
-          if [ -z "$SNOWFLAKE_CONNECTIONS_DEFAULT_USER" ]; then echo "❌ User Secret Missing"; exit 1; fi
-          if [ -z "$SNOWFLAKE_CONNECTIONS_DEFAULT_PASSWORD" ]; then echo "❌ Password Secret Missing"; exit 1; fi
-          echo "✅ Credentials injected into Environment successfully."
+          if [ -z "${{ secrets.SNOWFLAKE_ACCOUNT }}" ]; then echo "❌ Account Missing"; exit 1; fi
+          if [ -z "${{ secrets.SNOWFLAKE_USER }}" ]; then echo "❌ User Missing"; exit 1; fi
+          echo "✅ Secrets found."
 
-      # 3. DEPLOY
-      # No need to create files. The tool reads the 'env' variables above.
       - name: Deploy to Snowflake
+        # We pass the secrets directly into the command flags.
+        # This bypasses all configuration file lookups.
         run: |
-          # Drop old app to prevent conflicts
-          snow sql --connection default -q "DROP STREAMLIT IF EXISTS Production_Monitor_App"
+          # 1. Drop old app (Passing auth flags directly)
+          snow sql \
+            --account "${{ secrets.SNOWFLAKE_ACCOUNT }}" \
+            --user "${{ secrets.SNOWFLAKE_USER }}" \
+            --password "${{ secrets.SNOWFLAKE_PASSWORD }}" \
+            --role ACCOUNTADMIN \
+            --warehouse DASHBOARD_WH \
+            --database DASHBOARD_DB \
+            --schema APP_SCHEMA \
+            -q "DROP STREAMLIT IF EXISTS Production_Monitor_App"
           
-          # Deploy fresh
-          snow streamlit deploy Production_Monitor_App --connection default --replace
+          # 2. Deploy new app (Passing auth flags directly)
+          snow streamlit deploy Production_Monitor_App \
+            --replace \
+            --account "${{ secrets.SNOWFLAKE_ACCOUNT }}" \
+            --user "${{ secrets.SNOWFLAKE_USER }}" \
+            --password "${{ secrets.SNOWFLAKE_PASSWORD }}" \
+            --role ACCOUNTADMIN \
+            --warehouse DASHBOARD_WH \
+            --database DASHBOARD_DB \
+            --schema APP_SCHEMA
