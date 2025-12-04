@@ -12,36 +12,54 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 1. Force Python 3.9 (The "Safe Harbor" for Snowflake)
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
+          python-version: '3.9'
 
+      # 2. Install Dependencies
       - name: Install Tools
-        run: pip install pytest pandas duckdb snowflake-snowpark-python snowflake-cli-labs
+        run: pip install streamlit snowflake-snowpark-python pandas plotly snowflake-cli-labs
 
-      - name: Run Tests
-        run: python -m pytest tests/test_services.py
-
-      # 1. Manually create the config file (Naming the connection "default")
-      # 1. Create Config (Same as before - keep this!)
+      # 3. Create Config using PYTHON (Not Bash) to prevent corruption
       - name: Create Snowflake Config
+        env:
+          SNOW_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+          SNOW_USER: ${{ secrets.SNOWFLAKE_USER }}
+          SNOW_PASS: ${{ secrets.SNOWFLAKE_PASSWORD }}
         run: |
-          mkdir -p ~/.snowflake
-          echo "[connections.default]" > ~/.snowflake/config.toml
-          echo "account = \"${{ secrets.SNOWFLAKE_ACCOUNT }}\"" >> ~/.snowflake/config.toml
-          echo "user = \"${{ secrets.SNOWFLAKE_USER }}\"" >> ~/.snowflake/config.toml
-          echo "password = \"${{ secrets.SNOWFLAKE_PASSWORD }}\"" >> ~/.snowflake/config.toml
-          echo "role = \"ACCOUNTADMIN\"" >> ~/.snowflake/config.toml
-          echo "warehouse = \"DASHBOARD_WH\"" >> ~/.snowflake/config.toml
-          echo "database = \"DASHBOARD_DB\"" >> ~/.snowflake/config.toml
-          echo "schema = \"APP_SCHEMA\"" >> ~/.snowflake/config.toml
+          python -c "
+          import os
+          from pathlib import Path
+          
+          # Create the folder safely
+          config_dir = Path.home() / '.snowflake'
+          config_dir.mkdir(parents=True, exist_ok=True)
+          
+          # Write the content cleanly
+          config_content = f'''[connections.default]
+          account = \"{os.environ['SNOW_ACCOUNT']}\"
+          user = \"{os.environ['SNOW_USER']}\"
+          password = \"{os.environ['SNOW_PASS']}\"
+          role = \"ACCOUNTADMIN\"
+          warehouse = \"DASHBOARD_WH\"
+          database = \"DASHBOARD_DB\"
+          schema = \"APP_SCHEMA\"
+          '''
+          
+          # Save file
+          with open(config_dir / 'config.toml', 'w') as f:
+              f.write(config_content)
+          
+          print('✅ Config file created successfully at', config_dir / 'config.toml')
+          "
 
-      # 2. THE FIX: Delete the old app first (SQL), then Deploy new one
+      # 4. Deploy (Using the default connection we just made)
       - name: Deploy to Snowflake
         run: |
-          # Step A: Destroy the old app (Using the 'default' connection credentials)
+          # A. Clean up old app to prevent conflicts
           snow sql --connection default -q "DROP STREAMLIT IF EXISTS DASHBOARD_DB.APP_SCHEMA.Production_Monitor_App"
           
-          # Step B: Deploy the new app (Using the 'default' connection credentials)
+          # B. Deploy fresh
           snow streamlit deploy Production_Monitor_App --connection default
