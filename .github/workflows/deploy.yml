@@ -18,7 +18,6 @@ jobs:
           python-version: '3.10'
 
       - name: Install Tools
-        # Using specific version for stability
         run: pip install streamlit snowflake-snowpark-python pandas plotly snowflake-cli-labs==2.2.0
 
       - name: Create Global Config
@@ -29,12 +28,15 @@ jobs:
         run: |
           python -c "
           import os
+          import textwrap
           from pathlib import Path
           
           config_dir = Path.home() / '.snowflake'
           config_dir.mkdir(parents=True, exist_ok=True)
           
-          config_content = f'''[connections.default]
+          # USE DEDENT TO REMOVE INDENTATION SPACES
+          config_content = textwrap.dedent(f'''
+          [connections.default]
           account = \"{os.environ['SNOW_ACCOUNT']}\"
           user = \"{os.environ['SNOW_USER']}\"
           password = \"{os.environ['SNOW_PASS']}\"
@@ -42,23 +44,25 @@ jobs:
           warehouse = \"DASHBOARD_WH\"
           database = \"DASHBOARD_DB\"
           schema = \"APP_SCHEMA\"
-          '''
+          ''').strip()
           
           config_file = config_dir / 'config.toml'
           with open(config_file, 'w') as f:
               f.write(config_content)
               
-          print('✅ Config created')
+          print('✅ Config created cleanly')
           "
 
-      # --- THE FIX IS HERE ---
       - name: Fix Permissions
         run: chmod 0600 ~/.snowflake/config.toml
 
+      # Debug Step: Print file content (Password masked) to prove structure is valid
+      - name: Verify Config Structure
+        run: |
+          echo "File Content (Secrets Masked):"
+          sed 's/password = .*/password = "***"/' ~/.snowflake/config.toml
+
       - name: Deploy to Snowflake
         run: |
-          # Drop old app
           snow sql -c default -q "DROP STREAMLIT IF EXISTS Production_Monitor_App"
-          
-          # Deploy fresh
           snow streamlit deploy Production_Monitor_App -c default --replace
