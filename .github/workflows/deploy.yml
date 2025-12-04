@@ -5,74 +5,49 @@ on:
     branches:
       - main
 
+# 1. GLOBAL ENVIRONMENT VARIABLES
+# The Snowflake CLI automatically looks for variables named like this.
+# This bypasses the need for a config.toml file entirely.
+env:
+  SNOWFLAKE_CONNECTIONS_DEFAULT_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  SNOWFLAKE_CONNECTIONS_DEFAULT_USER: ${{ secrets.SNOWFLAKE_USER }}
+  SNOWFLAKE_CONNECTIONS_DEFAULT_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+  SNOWFLAKE_CONNECTIONS_DEFAULT_ROLE: ACCOUNTADMIN
+  SNOWFLAKE_CONNECTIONS_DEFAULT_WAREHOUSE: DASHBOARD_WH
+  SNOWFLAKE_CONNECTIONS_DEFAULT_DATABASE: DASHBOARD_DB
+  SNOWFLAKE_CONNECTIONS_DEFAULT_SCHEMA: APP_SCHEMA
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
-    # Define environment variables globally for all steps
-    env:
-      SNOWFLAKE_CONFIG_FILE: ./config.toml  # Force tool to read config from current folder
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # Stick to 3.10 or 3.9 for stability. 
+      # 3.11 sometimes has issues with specific library versions in CI.
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11.3'
+          python-version: '3.10'
 
       - name: Install Tools
         run: pip install streamlit snowflake-snowpark-python pandas plotly snowflake-cli-labs
 
-      # 🔍 DIAGNOSTIC STEP: Check if secrets actually exist
-      - name: Verify Secrets
+      # 2. DIAGNOSTIC: Verify Secrets exist (Does not print them, just checks)
+      - name: Check Secrets
         run: |
-          echo "Checking secrets..."
-          if [ -z "${{ secrets.SNOWFLAKE_ACCOUNT }}" ]; then
-            echo "::error::❌ CRITICAL: SNOWFLAKE_ACCOUNT secret is EMPTY. Go to GitHub Settings > Secrets."
-            exit 1
-          fi
-          if [ -z "${{ secrets.SNOWFLAKE_USER }}" ]; then
-            echo "::error::❌ CRITICAL: SNOWFLAKE_USER secret is EMPTY."
-            exit 1
-          fi
-          if [ -z "${{ secrets.SNOWFLAKE_PASSWORD }}" ]; then
-            echo "::error::❌ CRITICAL: SNOWFLAKE_PASSWORD secret is EMPTY."
-            exit 1
-          fi
-          echo "✅ All secrets are present!"
+          if [ -z "$SNOWFLAKE_CONNECTIONS_DEFAULT_ACCOUNT" ]; then echo "❌ Account Secret Missing"; exit 1; fi
+          if [ -z "$SNOWFLAKE_CONNECTIONS_DEFAULT_USER" ]; then echo "❌ User Secret Missing"; exit 1; fi
+          if [ -z "$SNOWFLAKE_CONNECTIONS_DEFAULT_PASSWORD" ]; then echo "❌ Password Secret Missing"; exit 1; fi
+          echo "✅ Credentials injected into Environment successfully."
 
-      # 🛠️ CONFIG STEP: Create config.toml in CURRENT folder (using Python for safety)
-      - name: Create Local Config
-        env:
-          SNOW_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
-          SNOW_USER: ${{ secrets.SNOWFLAKE_USER }}
-          SNOW_PASS: ${{ secrets.SNOWFLAKE_PASSWORD }}
-        run: |
-          python -c "
-          import os
-          
-          config_content = f'''[connections.default]
-          account = \"{os.environ['SNOW_ACCOUNT']}\"
-          user = \"{os.environ['SNOW_USER']}\"
-          password = \"{os.environ['SNOW_PASS']}\"
-          role = \"ACCOUNTADMIN\"
-          warehouse = \"DASHBOARD_WH\"
-          database = \"DASHBOARD_DB\"
-          schema = \"APP_SCHEMA\"
-          '''
-          
-          with open('config.toml', 'w') as f:
-              f.write(config_content)
-          print('✅ Created config.toml in current directory')
-          "
-
-      # 🚀 DEPLOY STEP
+      # 3. DEPLOY
+      # No need to create files. The tool reads the 'env' variables above.
       - name: Deploy to Snowflake
         run: |
-          # 1. Drop old app to prevent conflicts
-          snow sql --connection default -q "DROP STREAMLIT IF EXISTS DASHBOARD_DB.APP_SCHEMA.Production_Monitor_App"
+          # Drop old app to prevent conflicts
+          snow sql --connection default -q "DROP STREAMLIT IF EXISTS Production_Monitor_App"
           
-          # 2. Deploy fresh
-          snow streamlit deploy Production_Monitor_App --connection default
+          # Deploy fresh
+          snow streamlit deploy Production_Monitor_App --connection default --replace
