@@ -40,8 +40,8 @@ jobs:
       # 2. THE FIX: Delete the old app first (SQL), then Deploy new one
       - name: Deploy to Snowflake
         run: |
-          # Step A: Destroy the existing app (This prevents the "Already Exists" error)
-          snow sql -q "DROP STREAMLIT IF EXISTS DASHBOARD_DB.APP_SCHEMA.Production_Monitor_App"
+          # Step A: Destroy the old app (Using the 'default' connection credentials)
+          snow sql --connection default -q "DROP STREAMLIT IF EXISTS DASHBOARD_DB.APP_SCHEMA.Production_Monitor_App"
           
-          # Step B: Deploy fresh (No --replace flag needed anymore!)
-          snow streamlit deploy Production_Monitor_App
+          # Step B: Deploy the new app (Using the 'default' connection credentials)
+          snow streamlit deploy Production_Monitor_App --connection default
